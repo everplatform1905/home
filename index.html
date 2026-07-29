@@ -743,6 +743,16 @@
     background-repeat: no-repeat;
     background-position: right 16px center;
     padding-right: 40px;
+    color-scheme: dark;
+  }
+  .form-field select option {
+    background: #12161f;
+    color: #f5f7fb;
+    padding: 10px;
+  }
+  .form-field select option:disabled,
+  .form-field select option[value=""] {
+    color: #6d7585;
   }
   .form-check {
     display: flex; align-items: center; gap: 10px;
@@ -1318,31 +1328,34 @@
         </div>
       </div>
 
-      <form class="contact-form" onsubmit="handleSubmit(event)">
+      <form class="contact-form" id="quoteForm" action="https://formspree.io/f/xrenjnew" method="POST" onsubmit="handleSubmit(event)">
+        <input type="hidden" name="_subject" id="formSubject" value="[견적문의] (주)에버플랫폼 홈페이지" />
+        <input type="hidden" name="_language" value="ko" />
+        <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
         <div class="form-row">
           <div class="form-field">
             <label>회사명<span class="req">*</span></label>
-            <input type="text" required placeholder="(주)에버플랫폼" />
+            <input type="text" name="company" required placeholder="(주)에버플랫폼" />
           </div>
           <div class="form-field">
             <label>담당자명<span class="req">*</span></label>
-            <input type="text" required placeholder="홍길동" />
+            <input type="text" name="name" required placeholder="홍길동" />
           </div>
         </div>
         <div class="form-row">
           <div class="form-field">
             <label>이메일<span class="req">*</span></label>
-            <input type="email" required placeholder="name@company.com" />
+            <input type="email" name="email" required placeholder="name@company.com" />
           </div>
           <div class="form-field">
             <label>연락처</label>
-            <input type="tel" placeholder="010-0000-0000" />
+            <input type="tel" name="phone" placeholder="010-0000-0000" />
           </div>
         </div>
         <div class="form-field">
           <label>문의 유형<span class="req">*</span></label>
-          <select required>
-            <option value="">문의 유형을 선택해 주세요</option>
+          <select name="type" required>
+            <option value="" disabled selected>문의 유형을 선택해 주세요</option>
             <option>업무용 PC 도입</option>
             <option>워크스테이션 도입</option>
             <option>서버 · 스토리지 구축</option>
@@ -1353,7 +1366,7 @@
         </div>
         <div class="form-field">
           <label>문의 내용<span class="req">*</span></label>
-          <textarea required placeholder="도입 규모, 사용 목적, 예상 시기 등을 자유롭게 적어주세요."></textarea>
+          <textarea name="message" required placeholder="도입 규모, 사용 목적, 예상 시기 등을 자유롭게 적어주세요."></textarea>
         </div>
         <label class="form-check">
           <input type="checkbox" required />
@@ -1365,6 +1378,9 @@
             <path d="M3 8h10m0 0L8.5 3.5M13 8l-4.5 4.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
+        <p id="formNote" style="margin-top:14px;font-size:12px;color:var(--text-4);text-align:center;line-height:1.6;">
+          제출시 admin@everplatform.net 으로 메일이 발송됩니다.
+        </p>
       </form>
     </div>
   </div>
@@ -1413,18 +1429,65 @@
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
-  // Form submit handler (demo)
-  function handleSubmit(e) {
+  // Form submit handler — sends via Formspree (AJAX)
+  async function handleSubmit(e) {
     e.preventDefault();
-    const btn = e.target.querySelector('.form-submit');
-    const orig = btn.innerHTML;
-    btn.innerHTML = '전송되었습니다 ✓';
-    btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-    setTimeout(() => {
-      btn.innerHTML = orig;
-      btn.style.background = '';
-      e.target.reset();
-    }, 2400);
+    const f = e.target;
+    const btn = f.querySelector('.form-submit');
+    const note = document.getElementById('formNote');
+    const origBtn = btn.innerHTML;
+    const origNote = note.innerHTML;
+
+    // Set dynamic subject line
+    const company = (f.querySelector('[name="company"]')?.value || '').trim();
+    const type = (f.querySelector('[name="type"]')?.value || '').trim();
+    const subjectEl = document.getElementById('formSubject');
+    if (subjectEl) subjectEl.value = `[견적문의] ${company} · ${type}`;
+
+    // Loading state
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+    btn.innerHTML = '전송 중...';
+
+    try {
+      const res = await fetch(f.action, {
+        method: 'POST',
+        body: new FormData(f),
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (res.ok) {
+        btn.innerHTML = '✓ 문의가 접수되었습니다';
+        btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        note.innerHTML = '소중한 문의 감사합니다. 빠른 시일 내로 담당자가 연락드리겠습니다.';
+        note.style.color = '#4ade80';
+        f.reset();
+        setTimeout(() => {
+          btn.innerHTML = origBtn;
+          btn.style.background = '';
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          note.innerHTML = origNote;
+          note.style.color = '';
+        }, 5000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.errors?.[0]?.message || '전송 실패');
+      }
+    } catch (err) {
+      btn.innerHTML = '⚠ 전송 실패 · 다시 시도';
+      btn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
+      note.innerHTML = '전송에 실패했습니다. 잠시 후 다시 시도하셔도 문제가 계속되면 admin@everplatform.net 으로 직접 연락주세요.';
+      note.style.color = '#f87171';
+      setTimeout(() => {
+        btn.innerHTML = origBtn;
+        btn.style.background = '';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        note.innerHTML = origNote;
+        note.style.color = '';
+      }, 5000);
+    }
   }
 </script>
 
